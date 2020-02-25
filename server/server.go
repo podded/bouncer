@@ -118,7 +118,6 @@ func (svr *Server) handleServerRequest(w http.ResponseWriter, r *http.Request) {
 	// Begin the business logic
 
 	var req bouncer.Request
-	ctx := r.Context()
 
 	// First decode the request that is being made
 	dec := json.NewDecoder(r.Body)
@@ -153,7 +152,7 @@ func (svr *Server) handleServerRequest(w http.ResponseWriter, r *http.Request) {
 	br := bytes.NewReader(req.Body)
 
 	// Build the new request to make
-	requ, err := http.NewRequest(req.Method, req.URL, br)
+	requ, err := http.NewRequest(req.Method, u.RequestURI(), br)
 	if err != nil {
 		json.NewEncoder(w).Encode(errors.Wrap(err, "Failed to build request"))
 		w.WriteHeader(http.StatusInternalServerError)
