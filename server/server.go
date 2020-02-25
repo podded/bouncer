@@ -1,0 +1,214 @@
+package server
+
+import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"github.com/bradfitz/gomemcache/memcache"
+	"github.com/gregjones/httpcache"
+	httpmemcache "github.com/gregjones/httpcache/memcache"
+	"github.com/pkg/errors"
+	"github.com/podded/bouncer"
+	"io"
+	"log"
+	"net/http"
+	"net/url"
+	"time"
+
+	"contrib.go.opencensus.io/exporter/prometheus"
+	"go.opencensus.io/plugin/ochttp"
+	"go.opencensus.io/stats/view"
+	"go.opencensus.io/zpages"
+
+	"github.com/beefsack/go-rate"
+)
+
+type (
+	Server struct {
+		UserAgent   string
+		Client      http.Client
+		RateLimiter *rate.RateLimiter
+		RetryCount  int
+	}
+)
+
+func NewServer(UserAgent string, MemcachedAddress string) (serve *Server, err error) {
+
+	// Firstly, we'll register ochttp Client views
+	err = view.Register(
+		ochttp.ClientCompletedCount,
+		ochttp.ClientReceivedBytesDistribution,
+		ochttp.ClientRoundtripLatencyDistribution,
+	)
+
+	if err != nil {
+		return nil, errors.Wrap(err, "Failed to register client views for HTTP metrics")
+	}
+
+	// Enable observability to extract and examine traces and metrics.
+	err = enableObservabilityAndExporters()
+	if err != nil {
+		return nil, errors.Wrap(err, "Failed to setup prometheus exporter")
+	}
+
+	cache := memcache.New(MemcachedAddress)
+
+	// Create a memcached http client for the CCP APIs.
+	transport := httpcache.NewTransport(httpmemcache.NewWithClient(cache))
+	transport.Transport = &http.Transport{Proxy: http.ProxyFromEnvironment}
+	octr := &ochttp.Transport{Base: transport}
+	client := http.Client{Transport: octr}
+
+	// Set up the rate limiter
+	rt := rate.New(50, time.Second)
+
+	svr := &Server{
+		UserAgent:   UserAgent,
+		Client:      client,
+		RateLimiter: rt,
+		RetryCount:  10,
+	}
+
+	return svr, nil
+
+}
+
+func enableObservabilityAndExporters() (err error) {
+	// Stats exporter: Prometheus
+	pe, err := prometheus.NewExporter(prometheus.Options{
+		Namespace: "ochttp_tutorial",
+	})
+	if err != nil {
+		return errors.Wrap(err, "Failed to create the Prometheus stats exporter")
+	}
+
+	go func() {
+		mux := http.NewServeMux()
+		mux.Handle("/metrics", pe)
+		log.Fatal(http.ListenAndServe(":8888", mux))
+	}()
+
+	go func() {
+		mux := http.NewServeMux()
+		zpages.Handle(mux, "/")
+		addr := ":8889"
+		if err := http.ListenAndServe(addr, mux); err != nil {
+			log.Fatalf("Failed to serve zPages")
+		}
+	}()
+
+	return nil
+}
+
+func (svr *Server) RunServer(port int) {
+
+	hserv := http.NewServeMux()
+	hserv.HandleFunc("/", svr.handleServerRequest)
+	http.ListenAndServe(fmt.Sprintf("0.0.0.0:%d", port), hserv)
+
+}
+
+func (svr *Server) handleServerRequest(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "GET" {
+		w.WriteHeader(http.StatusBadRequest)
+		fmt.Fprint(w, "Only get requests accepted here :)")
+		return
+	}
+
+	// Begin the business logic
+
+	var req bouncer.Request
+	ctx := r.Context()
+
+	// First decode the request that is being made
+	dec := json.NewDecoder(r.Body)
+	err := dec.Decode(&req)
+	if err != nil {
+		json.NewEncoder(w).Encode(err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	defer r.Body.Close()
+
+	// TODO Handle timeouts
+	//if req.MaxWait > 0 {
+	//	ctx, _ = context.WithTimeout(ctx, req.MaxWait)
+	//}
+
+	// Parse the url to ensure it is correct
+	u, err := url.Parse(req.URL)
+	if err != nil {
+		json.NewEncoder(w).Encode(errors.Wrap(err, "Invalid URL Supplied"))
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	if req.Method != "GET" && req.Method != "POST" {
+		json.NewEncoder(w).Encode("Only GET and POST requests are accepted")
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	// Need a reader for the bytes body
+	br := bytes.NewReader(req.Body)
+
+	// Build the new request to make
+	requ, err := http.NewRequest(req.Method, req.URL, br)
+	if err != nil {
+		json.NewEncoder(w).Encode(errors.Wrap(err, "Failed to build request"))
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	// If we have an access token then add it as a header.
+	if len(req.AccessToken) > 0 {
+		requ.Header.Add("Authorization", fmt.Sprintf("Bearer %s", req.AccessToken))
+	}
+
+	// Now the logic to actually make the request
+
+	retryCount := svr.RetryCount
+	for retryCount > 0 {
+		// Block on our rate limiter
+		svr.RateLimiter.Wait()
+
+		sr, err := svr.Client.Do(requ)
+		if err != nil {
+			json.NewEncoder(w).Encode(errors.Wrap(err, "Error trying to execute request"))
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+		defer sr.Body.Close()
+
+		// Handle the various status codes we may get from CCP/AWS
+		// Some are worth retrying for some we shouldn't.
+		switch sr.StatusCode {
+		// 400s are generally something we should handle as a valid response
+		case 400:
+			fallthrough
+		case 404:
+			fallthrough
+		case 422:
+			fallthrough
+		// Valid response, directly send what we have back
+		case 200:
+			_, _ = io.Copy(w, sr.Body) // TODO Dont ignore the error
+			for k, vv := range sr.Header {
+				for _, v := range vv {
+					w.Header().Set(k, v)
+				}
+			}
+			w.Header().Set("X-Retries-Taken", fmt.Sprintf("%d", svr.RetryCount - retryCount))
+			w.WriteHeader(sr.StatusCode)
+			return
+
+		default:
+			continue
+		}
+	}
+
+	// If we get to here... Then we have run out of retries....
+	json.NewEncoder(w).Encode(errors.New("Maximum retries exceeded"))
+	w.WriteHeader(http.StatusTeapot)
+	return
+
+}
