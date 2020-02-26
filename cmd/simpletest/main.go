@@ -12,7 +12,7 @@ import (
 func main() {
 
 	// Create the client. Expect the server running on the same host
-	bc, version, err := client.NewBouncer("localhost:13270", 1*time.Second, "Test")
+	bc, version, err := client.NewBouncer("http://localhost:13270", 1*time.Second, "Test")
 	if err != nil {
 		log.Fatalln(err)
 	}
