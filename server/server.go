@@ -111,8 +111,8 @@ func (svr *Server) RunServer(port int) {
 
 func(svr *Server) handlePingRequest(w http.ResponseWriter, r *http.Request) {
 
-	json.NewEncoder(w).Encode(bouncer.BuiltVersion)
 	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(bouncer.BuiltVersion)
 }
 
 func (svr *Server) handleServerRequest(w http.ResponseWriter, r *http.Request) {
@@ -130,8 +130,8 @@ func (svr *Server) handleServerRequest(w http.ResponseWriter, r *http.Request) {
 	dec := json.NewDecoder(r.Body)
 	err := dec.Decode(&req)
 	if err != nil {
-		json.NewEncoder(w).Encode(err)
 		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(err)
 		return
 	}
 	defer r.Body.Close()
@@ -144,14 +144,14 @@ func (svr *Server) handleServerRequest(w http.ResponseWriter, r *http.Request) {
 	// Parse the url to ensure it is correct
 	u, err := url.Parse(req.URL)
 	if err != nil {
-		json.NewEncoder(w).Encode(errors.Wrap(err, "Invalid URL Supplied"))
 		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(errors.Wrap(err, "Invalid URL Supplied"))
 		return
 	}
 
 	if req.Method != "GET" && req.Method != "POST" {
-		json.NewEncoder(w).Encode("Only GET and POST requests are accepted")
 		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode("Only GET and POST requests are accepted")
 		return
 	}
 
@@ -161,8 +161,8 @@ func (svr *Server) handleServerRequest(w http.ResponseWriter, r *http.Request) {
 	// Build the new request to make
 	requ, err := http.NewRequest(req.Method, u.RequestURI(), br)
 	if err != nil {
-		json.NewEncoder(w).Encode(errors.Wrap(err, "Failed to build request"))
 		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(errors.Wrap(err, "Failed to build request"))
 		return
 	}
 
@@ -180,11 +180,11 @@ func (svr *Server) handleServerRequest(w http.ResponseWriter, r *http.Request) {
 
 		sr, err := svr.Client.Do(requ)
 		if err != nil {
-			json.NewEncoder(w).Encode(errors.Wrap(err, "Error trying to execute request"))
 			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(errors.Wrap(err, "Error trying to execute request"))
+			return
 		}
 		defer sr.Body.Close()
-
 		// Handle the various status codes we may get from CCP/AWS
 		// Some are worth retrying for some we shouldn't.
 		switch sr.StatusCode {
@@ -197,6 +197,7 @@ func (svr *Server) handleServerRequest(w http.ResponseWriter, r *http.Request) {
 			fallthrough
 		// Valid response, directly send what we have back
 		case 200:
+			w.WriteHeader(sr.StatusCode)
 			_, _ = io.Copy(w, sr.Body) // TODO Dont ignore the error
 			for k, vv := range sr.Header {
 				for _, v := range vv {
@@ -204,7 +205,6 @@ func (svr *Server) handleServerRequest(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 			w.Header().Set("X-Retries-Taken", fmt.Sprintf("%d", svr.RetryCount - retryCount))
-			w.WriteHeader(sr.StatusCode)
 			return
 
 		default:
@@ -213,8 +213,8 @@ func (svr *Server) handleServerRequest(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// If we get to here... Then we have run out of retries....
-	json.NewEncoder(w).Encode(errors.New("Maximum retries exceeded"))
 	w.WriteHeader(http.StatusTeapot)
+	json.NewEncoder(w).Encode(errors.New("Maximum retries exceeded"))
 	return
 
 }

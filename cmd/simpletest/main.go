@@ -31,7 +31,7 @@ func main() {
 	req := bouncer.Request{
 		URL:         url,
 		Method:      "GET",
-		Body:        nil,
+		Body:        []byte{},
 		MaxWait:     5,
 		AccessToken: "",
 	}
