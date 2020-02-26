@@ -7,7 +7,7 @@ BINARY_NAME=bouncer
 
 all: test build
 build:
-	$(GOBUILD) -o bin/$(BINARY_NAME)_server cmd/server.go
+	$(GOBUILD) -o bin/$(BINARY_NAME)_server cmd/server/main.go
 test:
 	$(GOTEST) -v ./...
 clean:
