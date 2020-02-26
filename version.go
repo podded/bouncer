@@ -10,7 +10,7 @@ type Version struct {
 }
 
 func (v Version) String() string {
-	return fmt.Sprintf("%d.%d.%d.%s", v.Major, v.Minor, v.Patch, v.Dev)
+	return fmt.Sprintf("%d.%d.%d.%t", v.Major, v.Minor, v.Patch, v.Dev)
 }
 
 var BuiltVersion = Version{
