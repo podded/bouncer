@@ -104,8 +104,15 @@ func (svr *Server) RunServer(port int) {
 
 	hserv := http.NewServeMux()
 	hserv.HandleFunc("/", svr.handleServerRequest)
+	hserv.HandleFunc("/ping", svr.handlePingRequest)
 	http.ListenAndServe(fmt.Sprintf("0.0.0.0:%d", port), hserv)
 
+}
+
+func(svr *Server) handlePingRequest(w http.ResponseWriter, r *http.Request) {
+
+	json.NewEncoder(w).Encode(bouncer.BuiltVersion)
+	w.WriteHeader(http.StatusOK)
 }
 
 func (svr *Server) handleServerRequest(w http.ResponseWriter, r *http.Request) {

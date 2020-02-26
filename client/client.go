@@ -27,7 +27,7 @@ func NewBouncer(ServerAddress string, MaxTimeout time.Duration, Descriptor strin
 	}
 
 	// Make sure that we have a connection to the bouncer server.
-	res, err := client.Get(ServerAddress)
+	res, err := client.Get(ServerAddress + "/ping")
 	if err != nil {
 		return nil, "", errors.Wrap(err, "Failed to contact bouncer server")
 	}
