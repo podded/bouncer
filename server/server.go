@@ -4,16 +4,17 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/bradfitz/gomemcache/memcache"
-	"github.com/gregjones/httpcache"
-	httpmemcache "github.com/gregjones/httpcache/memcache"
-	"github.com/pkg/errors"
-	"github.com/podded/bouncer"
 	"io"
 	"log"
 	"net/http"
 	"net/url"
 	"time"
+
+	"github.com/bradfitz/gomemcache/memcache"
+	"github.com/gregjones/httpcache"
+	httpmemcache "github.com/gregjones/httpcache/memcache"
+	"github.com/pkg/errors"
+	"github.com/podded/bouncer"
 
 	"contrib.go.opencensus.io/exporter/prometheus"
 	"go.opencensus.io/plugin/ochttp"
@@ -109,10 +110,11 @@ func (svr *Server) RunServer(port int) {
 
 }
 
-func(svr *Server) handlePingRequest(w http.ResponseWriter, r *http.Request) {
+func (svr *Server) handlePingRequest(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(bouncer.BuiltVersion)
+	log.Println("Sent ping response")
 }
 
 func (svr *Server) handleServerRequest(w http.ResponseWriter, r *http.Request) {
@@ -155,11 +157,14 @@ func (svr *Server) handleServerRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	log.Printf("New request for: %s\n", req.URL)
+	log.Printf("New request for: %s\n", u.RequestURI())
+
 	// Need a reader for the bytes body
 	br := bytes.NewReader(req.Body)
 
 	// Build the new request to make
-	requ, err := http.NewRequest(req.Method, u.RequestURI(), br)
+	requ, err := http.NewRequest(req.Method, u.String(), br)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(errors.Wrap(err, "Failed to build request"))
@@ -173,8 +178,10 @@ func (svr *Server) handleServerRequest(w http.ResponseWriter, r *http.Request) {
 
 	// Now the logic to actually make the request
 
+	log.Println(1)
 	retryCount := svr.RetryCount
 	for retryCount > 0 {
+		log.Println(2)
 		// Block on our rate limiter
 		svr.RateLimiter.Wait()
 
@@ -182,13 +189,15 @@ func (svr *Server) handleServerRequest(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(errors.Wrap(err, "Error trying to execute request"))
+			log.Printf("Error making request: %s", err)
 			return
 		}
 		defer sr.Body.Close()
 		// Handle the various status codes we may get from CCP/AWS
 		// Some are worth retrying for some we shouldn't.
+		log.Println(3)
 		switch sr.StatusCode {
-		// 400s are generally something we should handle as a valid response
+		// 400s are generally something we should handle as a valid response // but not for now
 		case 400:
 			fallthrough
 		case 404:
@@ -197,14 +206,13 @@ func (svr *Server) handleServerRequest(w http.ResponseWriter, r *http.Request) {
 			fallthrough
 		// Valid response, directly send what we have back
 		case 200:
+			log.Println("Got valid response from ESI")
 			w.WriteHeader(sr.StatusCode)
-			_, _ = io.Copy(w, sr.Body) // TODO Dont ignore the error
-			for k, vv := range sr.Header {
-				for _, v := range vv {
-					w.Header().Set(k, v)
-				}
+			_, err = io.Copy(w, sr.Body) // TODO better error handling
+			if err != nil {
+				log.Fatalln(err)
 			}
-			w.Header().Set("X-Retries-Taken", fmt.Sprintf("%d", svr.RetryCount - retryCount))
+			w.Header().Set("X-Retries-Taken", fmt.Sprintf("%d", svr.RetryCount-retryCount))
 			return
 
 		default:
@@ -212,6 +220,7 @@ func (svr *Server) handleServerRequest(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	log.Println(99)
 	// If we get to here... Then we have run out of retries....
 	w.WriteHeader(http.StatusTeapot)
 	json.NewEncoder(w).Encode(errors.New("Maximum retries exceeded"))
