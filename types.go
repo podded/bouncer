@@ -9,6 +9,7 @@ type (
 		Body        []byte        `json:"body"`
 		MaxWait     time.Duration `json:"max_wait"` // TODO implement timeout handling
 		AccessToken string        `json:"access_token"`
+		Descriptor  string        `json:"descriptor"`
 	}
 
 	Response struct {

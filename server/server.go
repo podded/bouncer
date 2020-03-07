@@ -170,6 +170,11 @@ func (svr *Server) handleServerRequest(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(errors.Wrap(err, "Failed to build request"))
 		return
 	}
+	if len(req.Descriptor) > 0 {
+		requ.Header.Set("User-Agent", fmt.Sprintf("PoddedBouncer - Crypta Electrica - %s", req.Descriptor))
+	} else {
+		requ.Header.Set("User-Agent", "PoddedBouncer - Crypta Electrica - naked")
+	}
 
 	// If we have an access token then add it as a header.
 	if len(req.AccessToken) > 0 {
