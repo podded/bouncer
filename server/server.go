@@ -178,10 +178,8 @@ func (svr *Server) handleServerRequest(w http.ResponseWriter, r *http.Request) {
 
 	// Now the logic to actually make the request
 
-	log.Println(1)
 	retryCount := svr.RetryCount
 	for retryCount > 0 {
-		log.Println(2)
 		// Block on our rate limiter
 		svr.RateLimiter.Wait()
 
@@ -195,7 +193,6 @@ func (svr *Server) handleServerRequest(w http.ResponseWriter, r *http.Request) {
 		defer sr.Body.Close()
 		// Handle the various status codes we may get from CCP/AWS
 		// Some are worth retrying for some we shouldn't.
-		log.Println(3)
 		switch sr.StatusCode {
 		// 400s are generally something we should handle as a valid response // but not for now
 		case 400:
@@ -206,7 +203,6 @@ func (svr *Server) handleServerRequest(w http.ResponseWriter, r *http.Request) {
 			fallthrough
 		// Valid response, directly send what we have back
 		case 200:
-			log.Println("Got valid response from ESI")
 			w.WriteHeader(sr.StatusCode)
 			_, err = io.Copy(w, sr.Body) // TODO better error handling
 			if err != nil {
@@ -220,7 +216,7 @@ func (svr *Server) handleServerRequest(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	log.Println(99)
+	log.Printf("Maximum retries exceeded for url: %s", u.String())
 	// If we get to here... Then we have run out of retries....
 	w.WriteHeader(http.StatusTeapot)
 	json.NewEncoder(w).Encode(errors.New("Maximum retries exceeded"))
