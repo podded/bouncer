@@ -171,9 +171,9 @@ func (svr *Server) handleServerRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if len(req.Descriptor) > 0 {
-		requ.Header.Set("User-Agent", fmt.Sprintf("PoddedBouncer - Crypta Electrica - %s", req.Descriptor))
+		requ.Header.Set("User-Agent", fmt.Sprintf("%s - %s", svr.UserAgent, req.Descriptor))
 	} else {
-		requ.Header.Set("User-Agent", "PoddedBouncer - Crypta Electrica - naked")
+		requ.Header.Set("User-Agent", fmt.Sprintf("%s - naked", svr.UserAgent))
 	}
 
 	// If we have an access token then add it as a header.

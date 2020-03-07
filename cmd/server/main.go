@@ -6,7 +6,7 @@ import (
 )
 
 func main() {
-	svr, err := server.NewServer("TEST PLEASE IGNORE", "127.0.0.1:111")
+	svr, err := server.NewServer("PoddedBouncer - Crypta Electrica", "127.0.0.1:111")
 	if err != nil {
 		log.Fatalln(err)
 	}
