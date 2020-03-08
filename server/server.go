@@ -158,7 +158,6 @@ func (svr *Server) handleServerRequest(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log.Printf("New request for: %s\n", req.URL)
-	log.Printf("New request for: %s\n", u.RequestURI())
 
 	// Need a reader for the bytes body
 	br := bytes.NewReader(req.Body)
@@ -208,7 +207,7 @@ func (svr *Server) handleServerRequest(w http.ResponseWriter, r *http.Request) {
 			fallthrough
 		// Valid response, directly send what we have back
 		case 200:
-			w.WriteHeader(sr.StatusCode)
+			w.WriteHeader(http.StatusOK)
 			_, err = io.Copy(w, sr.Body) // TODO better error handling
 			if err != nil {
 				log.Fatalln(err)
