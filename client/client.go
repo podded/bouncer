@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"time"
 
@@ -70,6 +71,8 @@ func (bc *BouncerClient) MakeRequest(request bouncer.Request) (res bouncer.Respo
 	if err != nil {
 		return bouncer.Response{}, 1, errors.Wrap(err, "Error reading response from bouncer")
 	}
+
+	log.Printf("Responding to request with status code %d", res.StatusCode)
 
 	return bouncer.Response{Body: resbytes, StatusCode: res.StatusCode}, res.StatusCode, nil
 
