@@ -72,8 +72,8 @@ func (bc *BouncerClient) MakeRequest(request bouncer.Request) (res bouncer.Respo
 		return bouncer.Response{}, 1, errors.Wrap(err, "Error reading response from bouncer")
 	}
 
-	log.Printf("Responding to request with status code %d", res.StatusCode)
+	log.Printf("Responding to request with status code %d\n", res.StatusCode)
 
-	return bouncer.Response{Body: resbytes, StatusCode: res.StatusCode}, res.StatusCode, nil
+	return bouncer.Response{Body: resbytes, StatusCode: response.StatusCode}, response.StatusCode, nil
 
 }
