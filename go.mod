@@ -9,6 +9,7 @@ require (
 	github.com/google/go-cmp v0.3.1 // indirect
 	github.com/gregjones/httpcache v0.0.0-20190611155906-901d90724c79
 	github.com/pkg/errors v0.9.1
+	github.com/prometheus/client_golang v0.9.2
 	go.opencensus.io v0.22.3
 	golang.org/x/net v0.0.0-20190923162816-aa69164e4478 // indirect
 )
