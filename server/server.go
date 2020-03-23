@@ -60,7 +60,7 @@ func RunServer(UserAgent string, MemcachedAddress string, port int) (err error) 
 
 	mserv := http.NewServeMux()
 	mserv.Handle("/metrics", promhttp.Handler())
-	go http.ListenAndServe(":8888", nil)
+	go http.ListenAndServe(":8888", mserv)
 
 	hserv := http.NewServeMux()
 	hserv.HandleFunc("/", svr.serveESIRequest())
