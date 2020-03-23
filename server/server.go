@@ -185,7 +185,7 @@ func (svr *Server) serveESIRequest() http.HandlerFunc {
 				fallthrough
 			// Valid response, directly send what we have back
 			case 200:
-				code = r.Response.StatusCode
+				code = sr.StatusCode
 				w.WriteHeader(http.StatusOK)
 				_, err = io.Copy(w, sr.Body) // TODO better error handling
 				if err != nil {
