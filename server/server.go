@@ -16,7 +16,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/podded/bouncer"
 
-	"github.com/beefsack/go-rate"
+	"go.uber.org/ratelimit"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -26,7 +26,7 @@ type (
 	Server struct {
 		UserAgent   string
 		Client      http.Client
-		RateLimiter *rate.RateLimiter
+		RateLimiter *ratelimit.Limiter
 		RetryCount  int
 	}
 )
@@ -49,12 +49,12 @@ func RunServer(UserAgent string, MemcachedAddress string, port int) (err error) 
 	client := http.Client{Transport: transport}
 
 	// Set up the rate limiter
-	rt := rate.New(50, time.Second)
+	rt := ratelimit.New(50)
 
 	svr := &Server{
 		UserAgent:   UserAgent,
 		Client:      client,
-		RateLimiter: rt,
+		RateLimiter: &rt,
 		RetryCount:  10,
 	}
 
@@ -162,7 +162,7 @@ func (svr *Server) serveESIRequest() http.HandlerFunc {
 		retryCount := svr.RetryCount
 		for retryCount > 0 {
 			// Block on our rate limiter
-			svr.RateLimiter.Wait()
+			svr.RateLimiter.Take()
 
 			sr, err := svr.Client.Do(requ)
 			if err != nil {
