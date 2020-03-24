@@ -26,7 +26,7 @@ type (
 	Server struct {
 		UserAgent   string
 		Client      http.Client
-		RateLimiter *ratelimit.Limiter
+		RateLimiter ratelimit.Limiter
 		RetryCount  int
 	}
 )
@@ -54,7 +54,7 @@ func RunServer(UserAgent string, MemcachedAddress string, port int) (err error) 
 	svr := &Server{
 		UserAgent:   UserAgent,
 		Client:      client,
-		RateLimiter: &rt,
+		RateLimiter: rt,
 		RetryCount:  10,
 	}
 
