@@ -16,10 +16,10 @@ import (
 	"github.com/pkg/errors"
 	"github.com/podded/bouncer"
 
-	"go.uber.org/ratelimit"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"go.uber.org/ratelimit"
 )
 
 type (
@@ -39,7 +39,7 @@ var (
 	}, []string{"code"})
 )
 
-func RunServer(UserAgent string, MemcachedAddress string, port int) (err error) {
+func RunServer(UserAgent string, MemcachedAddress string, port int, rate int) (err error) {
 
 	cache := memcache.New(MemcachedAddress)
 
@@ -49,7 +49,7 @@ func RunServer(UserAgent string, MemcachedAddress string, port int) (err error) 
 	client := http.Client{Transport: transport}
 
 	// Set up the rate limiter
-	rt := ratelimit.New(50)
+	rt := ratelimit.New(rate)
 
 	svr := &Server{
 		UserAgent:   UserAgent,

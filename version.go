@@ -14,8 +14,8 @@ func (v Version) String() string {
 }
 
 var BuiltVersion = Version{
-	Major: 0,
+	Major: 1,
 	Minor: 0,
-	Patch: 1,
-	Dev:   true,
+	Patch: 0,
+	Dev:   false,
 }

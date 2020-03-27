@@ -13,7 +13,8 @@ import (
 func main() {
 
 	// Create the client. Expect the server running on the same host
-	bc, version, err := client.NewBouncer("http://localhost:13270", 10*time.Second, "Test")
+	// TODO Make this configurable
+	bc, version, err := client.NewBouncer("http://127.0.0.1:13271", 10*time.Second, "Test")
 	if err != nil {
 		log.Fatalln(err)
 	}
