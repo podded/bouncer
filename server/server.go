@@ -35,7 +35,7 @@ var (
 	histogram = promauto.NewHistogramVec(prometheus.HistogramOpts{
 		Name:    "bouncer_requests",
 		Help:    "A histogram of bouncer response times (will roughly equate to ESI response times",
-		Buckets: []float64{0.5, 1, 2, 5, 10},
+		Buckets: []float64{0.1, 0.2, 0.5, 1, 2, 5},
 	}, []string{"code"})
 )
 
@@ -133,7 +133,7 @@ func (svr *Server) serveESIRequest() http.HandlerFunc {
 			return
 		}
 
-		log.Printf("New request for: %s\n", req.URL)
+		//log.Printf("New request for: %s\n", req.URL)
 
 		// Need a reader for the bytes body
 		br := bytes.NewReader(req.Body)
@@ -155,6 +155,11 @@ func (svr *Server) serveESIRequest() http.HandlerFunc {
 		// If we have an access token then add it as a header.
 		if len(req.AccessToken) > 0 {
 			requ.Header.Add("Authorization", fmt.Sprintf("Bearer %s", req.AccessToken))
+		}
+
+		// If we have an ETag then send it as a header
+		if len(req.ETag) > 0 {
+			requ.Header.Add("If-None-Match", req.ETag)
 		}
 
 		// Now the logic to actually make the request
@@ -193,13 +198,18 @@ func (svr *Server) serveESIRequest() http.HandlerFunc {
 				}
 				w.Header().Set("X-Retries-Taken", fmt.Sprintf("%d", svr.RetryCount-retryCount))
 				return
-
+			case 304:
+				code = sr.StatusCode
+				w.WriteHeader(http.StatusNotModified)
+				w.Header().Set("X-Retries-Taken", fmt.Sprintf("%d", svr.RetryCount-retryCount))
+				return
 			default:
 				continue
 			}
 		}
 
 		log.Printf("Maximum retries exceeded for url: %s", u.String())
+
 		// If we get to here... Then we have run out of retries....
 		code = http.StatusTeapot
 		w.WriteHeader(code)
