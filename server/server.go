@@ -257,7 +257,7 @@ func (svr *Server) serveESIRequest() http.HandlerFunc {
 				log.Printf("DEBUG-429-%v", req.URL)
 				fallthrough
 			default:
-				log.Printf("BAD CODE - %v\n", sr.StatusCode)
+				log.Printf("DEBUG-%v-%v", sr.StatusCode, req.URL)
 				log.Printf("x-esi-request-id: %v", sr.Header.Get("x-esi-request-id"))
 				if reqHeadersBytes, err := json.Marshal(sr.Header); err != nil {
 					log.Println("Could not Marshal Req Headers")
