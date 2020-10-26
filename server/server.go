@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
@@ -226,7 +227,13 @@ func (svr *Server) serveESIRequest() http.HandlerFunc {
 				fallthrough
 			case 422:
 				log.Printf("DEBUG-422-%v", req.URL)
-				fallthrough
+				bd, err := ioutil.ReadAll(sr.Body)
+				w.WriteHeader(sr.StatusCode)
+				w.Header().Set("X-Retries-Taken", fmt.Sprintf("%d", svr.RetryCount-retryCount))
+				if err == nil {
+					log.Printf("DEBUG-Body-%v", string(bd))
+				}
+				return
 			// Valid response, directly send what we have back
 			case 200:
 				code = sr.StatusCode
