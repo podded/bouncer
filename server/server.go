@@ -220,13 +220,12 @@ func (svr *Server) serveESIRequest() http.HandlerFunc {
 			switch sr.StatusCode {
 			// 400s are generally something we should handle as a valid response // but not for now
 			case 400:
-				log.Printf("DEBUG-400-%v", req.URL)
 				fallthrough
 			case 404:
-				log.Printf("DEBUG-404-%v", req.URL)
 				fallthrough
 			case 422:
-				log.Printf("DEBUG-422-%v", req.URL)
+				log.Printf("DEBUG-%v-%v", req.URL)
+				log.Printf("x-esi-request-id: %v", sr.Header.Get("x-esi-request-id"))
 				bd, err := ioutil.ReadAll(sr.Body)
 				w.WriteHeader(sr.StatusCode)
 				w.Header().Set("X-Retries-Taken", fmt.Sprintf("%d", svr.RetryCount-retryCount))
@@ -254,6 +253,8 @@ func (svr *Server) serveESIRequest() http.HandlerFunc {
 				fallthrough
 			default:
 				log.Printf("BAD CODE - %v\n", sr.StatusCode)
+				log.Printf("x-esi-request-id: %v", sr.Header.Get("x-esi-request-id"))
+				w.Header().Set("X-Retries-Taken", fmt.Sprintf("%d", svr.RetryCount-retryCount))
 				bd, err := ioutil.ReadAll(sr.Body)
 				if err == nil {
 					log.Printf("DEBUG-Body-%v", string(bd))
