@@ -224,7 +224,7 @@ func (svr *Server) serveESIRequest() http.HandlerFunc {
 			case 404:
 				fallthrough
 			case 422:
-				log.Printf("DEBUG-%v-%v", req.URL)
+				log.Printf("DEBUG-%v-%v", sr.StatusCode, req.URL)
 				log.Printf("x-esi-request-id: %v", sr.Header.Get("x-esi-request-id"))
 				bd, err := ioutil.ReadAll(sr.Body)
 				w.WriteHeader(sr.StatusCode)
