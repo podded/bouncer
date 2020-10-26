@@ -8,6 +8,8 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"strconv"
+	"sync"
 	"time"
 
 	"github.com/bradfitz/gomemcache/memcache"
@@ -28,14 +30,17 @@ type (
 		Client      http.Client
 		RateLimiter ratelimit.Limiter
 		RetryCount  int
+
+		mut          sync.Mutex
+		errorLimited bool
 	}
 )
 
 var (
 	histogram = promauto.NewHistogramVec(prometheus.HistogramOpts{
 		Name:    "bouncer_requests",
-		Help:    "A histogram of bouncer response times (will roughly equate to ESI response times",
-		Buckets: []float64{0.1, 0.2, 0.5, 1, 2, 5},
+		Help:    "A histogram of bouncer response times (will roughly equate to ESI response times)",
+		Buckets: []float64{0.1, 0.2, 0.5, 1, 2, 5, 10},
 	}, []string{"code"})
 )
 
@@ -162,10 +167,23 @@ func (svr *Server) serveESIRequest() http.HandlerFunc {
 			requ.Header.Add("If-None-Match", req.ETag)
 		}
 
+		// Add context in order to get cancellation propgation
+		requ = requ.WithContext(r.Context())
+
 		// Now the logic to actually make the request
 
 		retryCount := svr.RetryCount
 		for retryCount > 0 {
+			// Wait until error limit gone
+			limited := true
+			for limited {
+				svr.mut.Lock()
+				if !svr.errorLimited {
+					limited = false
+				}
+				svr.mut.Unlock()
+			}
+
 			// Block on our rate limiter
 			svr.RateLimiter.Take()
 
@@ -177,16 +195,37 @@ func (svr *Server) serveESIRequest() http.HandlerFunc {
 				log.Printf("Error making request: %s", err)
 				return
 			}
+			eh := sr.Header.Get("X-ESI-Error-Limit-Remain")
+			if eh != "" {
+				elimit, err := strconv.Atoi(eh)
+				if err == nil {
+					if elimit < 50 {
+						log.Print("WARN: ERROR LIMITING: REMAIN %v\n", elimit)
+						svr.mut.Lock()
+						svr.errorLimited = true
+						svr.mut.Unlock()
+						go func() {
+							time.Sleep(60 * time.Second)
+							svr.mut.Lock()
+							svr.errorLimited = false
+							svr.mut.Unlock()
+						}()
+					}
+				}
+			}
 			defer sr.Body.Close()
 			// Handle the various status codes we may get from CCP/AWS
 			// Some are worth retrying for some we shouldn't.
 			switch sr.StatusCode {
 			// 400s are generally something we should handle as a valid response // but not for now
 			case 400:
+				log.Printf("DEBUG-400-%v", req.URL)
 				fallthrough
 			case 404:
+				log.Printf("DEBUG-404-%v", req.URL)
 				fallthrough
 			case 422:
+				log.Printf("DEBUG-422-%v", req.URL)
 				fallthrough
 			// Valid response, directly send what we have back
 			case 200:
@@ -203,6 +242,9 @@ func (svr *Server) serveESIRequest() http.HandlerFunc {
 				w.WriteHeader(http.StatusNotModified)
 				w.Header().Set("X-Retries-Taken", fmt.Sprintf("%d", svr.RetryCount-retryCount))
 				return
+			case 429:
+				log.Printf("DEBUG-429-%v", req.URL)
+				fallthrough
 			default:
 				continue
 			}
