@@ -225,7 +225,12 @@ func (svr *Server) serveESIRequest() http.HandlerFunc {
 				fallthrough
 			case 422:
 				log.Printf("DEBUG-%v-%v", sr.StatusCode, req.URL)
-				log.Printf("x-esi-request-id: %v", sr.Header.Get("x-esi-request-id"))
+				log.Printf("x-esi-request-id: %s", sr.Header.Get("x-esi-request-id"))
+				if reqHeadersBytes, err := json.Marshal(sr.Header); err != nil {
+					log.Println("Could not Marshal Req Headers")
+				} else {
+					log.Printf("Headers: %s\n", string(reqHeadersBytes))
+				}
 				bd, err := ioutil.ReadAll(sr.Body)
 				w.WriteHeader(sr.StatusCode)
 				w.Header().Set("X-Retries-Taken", fmt.Sprintf("%d", svr.RetryCount-retryCount))
@@ -254,6 +259,11 @@ func (svr *Server) serveESIRequest() http.HandlerFunc {
 			default:
 				log.Printf("BAD CODE - %v\n", sr.StatusCode)
 				log.Printf("x-esi-request-id: %v", sr.Header.Get("x-esi-request-id"))
+				if reqHeadersBytes, err := json.Marshal(sr.Header); err != nil {
+					log.Println("Could not Marshal Req Headers")
+				} else {
+					log.Printf("Headers: %s\n", string(reqHeadersBytes))
+				}
 				w.Header().Set("X-Retries-Taken", fmt.Sprintf("%d", svr.RetryCount-retryCount))
 				bd, err := ioutil.ReadAll(sr.Body)
 				if err == nil {
