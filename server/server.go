@@ -201,7 +201,7 @@ func (svr *Server) serveESIRequest() http.HandlerFunc {
 				elimit, err := strconv.Atoi(eh)
 				if err == nil {
 					if elimit < 50 {
-						log.Print("WARN: ERROR LIMITING: REMAIN %v\n", elimit)
+						log.Printf("WARN: ERROR LIMITING: REMAIN %v\n", elimit)
 						svr.mut.Lock()
 						svr.errorLimited = true
 						svr.mut.Unlock()
@@ -253,6 +253,11 @@ func (svr *Server) serveESIRequest() http.HandlerFunc {
 				log.Printf("DEBUG-429-%v", req.URL)
 				fallthrough
 			default:
+				log.Printf("BAD CODE - %v\n", sr.StatusCode)
+				bd, err := ioutil.ReadAll(sr.Body)
+				if err == nil {
+					log.Printf("DEBUG-Body-%v", string(bd))
+				}
 				continue
 			}
 		}
